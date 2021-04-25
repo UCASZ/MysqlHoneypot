@@ -1,4 +1,4 @@
-import evalServer
+import evalServer_for_win as evalServer
 from multiprocessing import Pool
 
 def eval_server():

